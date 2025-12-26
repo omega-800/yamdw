@@ -19,7 +19,7 @@ void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
   fprintf(((Context *)userdata)->file, "%s", text);
 }
 
-int generate(char *path, char *out) {
+int generate(char *path, char *root, char *out) {
   printf("%s: ", path);
   struct stat sb;
 
@@ -43,7 +43,7 @@ int generate(char *path, char *out) {
         continue;
       char newpath[sizeof(path) + sizeof(dp->d_name)];
       snprintf(newpath, sizeof(newpath), "%s/%s", path, dp->d_name);
-      if (generate(newpath, out) != 0) {
+      if (generate(newpath, root, out) != 0) {
         closedir(dir);
         return 1;
       }
@@ -52,6 +52,7 @@ int generate(char *path, char *out) {
     break;
   case S_IFREG:
     if (strncmp(path + strlen(path) - 3, ".md", 3) != 0) {
+        // TODO: copy
       printf("skipping non-markdown file\n");
       break;
     }
@@ -68,8 +69,16 @@ int generate(char *path, char *out) {
 
     contents[fsize] = 0;
 
+    char *last_dot = rindex(path, '.');
     // TODO:
-    FILE *file = fopen(path + ".html", "a");
+    char *rel_path = path + strlen(root);
+    char html_path[strlen(root) + strlen(rel_path) + 2];
+    strncpy(html_path, root, strlen(root));
+    strncpy(html_path + strlen(root), rel_path, strlen(rel_path));
+    strncpy(html_path + strlen(root) + strlen(rel_path) - 2, "html", 4);
+
+    FILE *file = fopen(html_path, "a");
+
 
     Context c = {file};
     md_html(contents, fsize + 1, process_output, (void *)&c, MD_HTML_FLAG_DEBUG,
@@ -102,6 +111,7 @@ int generate(char *path, char *out) {
   return 0;
 }
 
+// FIXME: 
 int rmdir_rec(const char *path) {
   struct dirent *entry;
   DIR *dp = opendir(path);
@@ -163,7 +173,7 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  if (generate(argv[1], argv[2]) != 0) {
+  if (generate(argv[1], argv[1], argv[2]) != 0) {
     fprintf(stderr, "Failed to generate %s", argv[1]);
     exit(EXIT_FAILURE);
   }
