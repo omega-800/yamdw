@@ -21,8 +21,7 @@ typedef struct Context {
 } Context;
 
 void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
-  // printf("%s", text);
-  fprintf(((Context *)userdata)->file, "%s", text);
+  fprintf(((Context *)userdata)->file,  "%*.*s", size, size, text);
 }
 
 int generate(char *path, char *root, char *out) {
@@ -73,17 +72,10 @@ int generate(char *path, char *root, char *out) {
 
     contents[fsize] = 0;
 
-    // /asdf/b/in/c.md -> /asdf/b/out/c.md
-    // /asdf/b/in + c.md -> /asdf/b/out + c.md
-    printf("p: %s\n", path);
-    printf("r: %s\n", root);
-    printf("o: %s\n", out);
+    // TODO: better memory management
     char *no_pre = trim_prefix(path, root);
-    printf("%s\n", no_pre);
     char *changed_ext = change_ext(no_pre, ".html");
-    printf("%s\n", changed_ext);
     char *html_path = join_path(out, changed_ext);
-    printf("%s\n", html_path);
 
     FILE *file = fopen(html_path, "a");
 
