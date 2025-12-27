@@ -1,10 +1,16 @@
-#include "md4c/md4c-html.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "libpath.h"
+#include "md4c/md4c-html.h"
+#define ARENA_IMPLEMENTATION
+#include "arena.h"
+
+Arena arena = {0};
 
 #define MD4C_USE_UTF8
 
@@ -39,20 +45,18 @@ int generate(char *path, char *root, char *out) {
       return 1;
     }
     while ((dp = readdir(dir)) != NULL) {
-      if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+      if (is_rel_dot(dp->d_name))
         continue;
-      char newpath[sizeof(path) + sizeof(dp->d_name)];
-      snprintf(newpath, sizeof(newpath), "%s/%s", path, dp->d_name);
-      if (generate(newpath, root, out) != 0) {
-        closedir(dir);
-        return 1;
-      }
+      if (generate(join_path(path, dp->d_name), root, out) == 0)
+        continue;
+      closedir(dir);
+      return 1;
     }
     closedir(dir);
     break;
   case S_IFREG:
-    if (strncmp(path + strlen(path) - 3, ".md", 3) != 0) {
-        // TODO: copy
+    if (!has_ext(path, ".md")) {
+      // TODO: copy
       printf("skipping non-markdown file\n");
       break;
     }
@@ -63,30 +67,34 @@ int generate(char *path, char *root, char *out) {
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char *contents = malloc(fsize + 1);
+    char *contents = arena_alloc(&arena, fsize + 1);
     fread(contents, fsize, 1, f);
     fclose(f);
 
     contents[fsize] = 0;
 
-    char *last_dot = rindex(path, '.');
-    // TODO:
-    char *rel_path = path + strlen(root);
-    char html_path[strlen(root) + strlen(rel_path) + 2];
-    strncpy(html_path, root, strlen(root));
-    strncpy(html_path + strlen(root), rel_path, strlen(rel_path));
-    strncpy(html_path + strlen(root) + strlen(rel_path) - 2, "html", 4);
+    // /asdf/b/in/c.md -> /asdf/b/out/c.md
+    // /asdf/b/in + c.md -> /asdf/b/out + c.md
+    printf("p: %s\n", path);
+    printf("r: %s\n", root);
+    printf("o: %s\n", out);
+    char *no_pre = trim_prefix(path, root);
+    printf("%s\n", no_pre);
+    char *changed_ext = change_ext(no_pre, ".html");
+    printf("%s\n", changed_ext);
+    char *html_path = join_path(out, changed_ext);
+    printf("%s\n", html_path);
 
     FILE *file = fopen(html_path, "a");
-
 
     Context c = {file};
     md_html(contents, fsize + 1, process_output, (void *)&c, MD_HTML_FLAG_DEBUG,
             MD_FLAG_TABLES | MD_FLAG_TASKLISTS | MD_FLAG_STRIKETHROUGH |
                 MD_FLAG_LATEXMATHSPANS | MD_FLAG_WIKILINKS | MD_FLAG_UNDERLINE);
 
+    // TODO:
+    // free contents
     fclose(file);
-    free(contents);
     break;
   case S_IFBLK:
     printf("block device\n");
@@ -111,7 +119,6 @@ int generate(char *path, char *root, char *out) {
   return 0;
 }
 
-// FIXME: 
 int rmdir_rec(const char *path) {
   struct dirent *entry;
   DIR *dp = opendir(path);
@@ -123,7 +130,7 @@ int rmdir_rec(const char *path) {
   }
 
   while ((entry = readdir(dp)) != NULL) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+    if (is_rel_dot(entry->d_name))
       continue;
     char full_path[sizeof(path) + sizeof(entry->d_name)];
     snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
@@ -151,15 +158,25 @@ int rmdir_rec(const char *path) {
 }
 
 int create_out(char *out) {
+  // TODO: check for path type and act accordingly
   struct stat st;
   if (stat(out, &st) == 0 && (st.st_mode & S_IFDIR))
-    if (rmdir_rec(out) != 0)
-      return 1;
+    return 1;
+  // TODO:
+  // if (rmdir_rec(out) != 0)
+  //   return 1;
 
   if (mkdir(out, 0700) != 0)
     return 1;
 
   return 0;
+}
+
+char *to_dir(char *path) {
+  struct stat st;
+  if (stat(path, &st) == 0 && (st.st_mode & S_IFREG))
+    return parent(path);
+  return path;
 }
 
 int main(int argc, char **argv) {
@@ -168,15 +185,19 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  if (create_out(argv[2]) != 0) {
-    fprintf(stderr, "Failed to create %s", argv[2]);
+  char *in = to_dir(argv[1]);
+  char *out = to_dir(argv[2]);
+
+  if (create_out(out) != 0) {
+    fprintf(stderr, "Failed to create %s", out);
     exit(EXIT_FAILURE);
   }
 
-  if (generate(argv[1], argv[1], argv[2]) != 0) {
-    fprintf(stderr, "Failed to generate %s", argv[1]);
+  if (generate(argv[1], in, out) != 0) {
+    fprintf(stderr, "Failed to generate %s", in);
     exit(EXIT_FAILURE);
   }
+  arena_free(&arena);
 
   return 0;
 }

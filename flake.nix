@@ -6,10 +6,15 @@
   outputs =
     { self, nixpkgs }:
     let
-      systems = nixpkgs.lib.platforms.unix;
+      inherit (nixpkgs.lib)
+        genAttrs
+        platforms
+        fileset
+        ;
+      systems = platforms.unix;
       eachSystem =
         f:
-        nixpkgs.lib.genAttrs systems (
+        genAttrs systems (
           system:
           f (
             import nixpkgs {
@@ -19,9 +24,18 @@
             }
           )
         );
+      fs = fileset;
+      root = ./.;
+      src = fs.toSource {
+        inherit root;
+        fileset = fs.intersection (fs.gitTracked root) (
+          fs.fileFilter (f: (f.hasExt "c") || (f.hasExt "h")) ./src
+        );
+      };
       pname = "yamdw";
     in
     {
+      asdf = src;
       devShells = eachSystem (pkgs: {
         default = pkgs.mkShellNoCC {
           packages = with pkgs; [ tinycc ];
@@ -31,36 +45,28 @@
       packages = eachSystem (
         pkgs:
         let
-          fs = pkgs.lib.fileset;
-          root = ./.;
           inherit (pkgs) coreutils dash tinycc;
-          inherit (pkgs.lib) getExe getExe';
+          inherit (pkgs.lib) getExe concatMapStringsSep;
         in
         {
           default = derivation {
             name = "${pname}-0.0.1";
             inherit (pkgs) system;
+            inherit src;
             builder = getExe dash;
             args = [
               "-c"
               # TODO: static
               ''
-                ${getExe' coreutils "mkdir"} -p "$out/bin" &&
-                ${getExe tinycc} "$src/src/main.c" \
-                  "$src/src/md4c/md4c.c" "$src/src/md4c/md4c.h" \
-                  "$src/src/md4c/md4c-html.c" "$src/src/md4c/md4c-html.h" \
-                  "$src/src/md4c/entity.c" "$src/src/md4c/entity.h" \
+                PATH="$PATH:${coreutils}/bin"
+                mkdir -p "$out/bin" &&
+                ${getExe tinycc} "$src/src/"*.h "$src/src/"*.c \
+                  "$src/src/md4c/"*.h "$src/src/md4c/"*.c \
                   -o "${pname}" -std=c99 -fsanitize=address -O3 &&
                   # -Wall -Werror -Wextra
-                ${getExe' coreutils "mv"} "${pname}" "$out/bin"
+                mv "${pname}" "$out/bin"
               ''
             ];
-            src = fs.toSource {
-              inherit root;
-              fileset = fs.intersection (fs.gitTracked root) (
-                fs.fileFilter (f: (f.hasExt "c") || (f.hasExt "h")) ./src
-              );
-            };
           };
         }
       );
