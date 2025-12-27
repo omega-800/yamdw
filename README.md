@@ -1,7 +1,6 @@
 # yamdw
 
-yamd: Yet Another MarkDown Wiki    
-Simple markdown renderer written in C.   
+Yet Another MarkDown Wiki: Simple markdown renderer written in C.   
 
 ## Usage
 

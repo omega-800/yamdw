@@ -1,4 +1,3 @@
-
 int has_ext(const char *path, const char *ext);
 int is_rel_dot(const char *path);
 char *join_path(const char *pre, const char *post);

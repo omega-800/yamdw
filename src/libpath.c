@@ -4,10 +4,6 @@
 
 extern Arena arena;
 
-int last_ch_slsh(const char *str) {
-  return str && *str && str[strlen(str) - 1] == '/';
-}
-
 int has_ext(const char *path, const char *ext) {
   int ext_len = strlen(ext);
   return strncmp(path + strlen(path) - ext_len, ext, ext_len) == 0;

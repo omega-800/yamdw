@@ -5,12 +5,18 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "libfs.h"
 #include "libpath.h"
+#include "libstr.h"
 #include "md4c/md4c-html.h"
 #define ARENA_IMPLEMENTATION
 #include "arena.h"
 
 Arena arena = {0};
+// char *html_page = "";
+// int len_page = 0;
+char *html_page_begin = "<html>\n<body>\n";
+char *html_page_end = "</body>\n</html>\n";
 
 #define MD4C_USE_UTF8
 
@@ -21,12 +27,19 @@ typedef struct Context {
 } Context;
 
 void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
-  // printf("%s", text);
-  fprintf(((Context *)userdata)->file, "%s", text);
+  fprintf(((Context *)userdata)->file, "%*.*s", size, size, text);
 }
 
-int generate(char *path, char *root, char *out) {
-  printf("%s: ", path);
+char *to_out_path(const char *path, const char *root, const char *out,
+                  const int to_html) {
+  // TODO: better memory management
+  char *new_path = trim_prefix(path, root);
+  if (to_html)
+    new_path = change_ext(new_path, ".html");
+  return join_path(out, new_path);
+}
+
+int generate(const char *path, const char *root, const char *out) {
   struct stat sb;
 
   if (lstat(path, &sb) == -1) {
@@ -36,12 +49,10 @@ int generate(char *path, char *root, char *out) {
 
   switch (sb.st_mode & S_IFMT) {
   case S_IFDIR:
-    printf("directory\n");
     struct dirent *dp;
     DIR *dir = opendir(path);
     if (dir == NULL) {
       fprintf(stderr, "Couldn't open directory: %s", path);
-      closedir(dir);
       return 1;
     }
     while ((dp = readdir(dir)) != NULL) {
@@ -56,113 +67,46 @@ int generate(char *path, char *root, char *out) {
     break;
   case S_IFREG:
     if (!has_ext(path, ".md")) {
-      // TODO: copy
-      printf("skipping non-markdown file\n");
+      char *new_path = to_out_path(path, root, out, 0);
+      cp(path, new_path);
       break;
     }
-    printf("regular file\n");
 
-    FILE *f = fopen(path, "rb");
-    fseek(f, 0, SEEK_END);
-    long fsize = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    char *contents = read_file(path);
+    char *html_path = to_out_path(path, root, out, 1);
 
-    char *contents = arena_alloc(&arena, fsize + 1);
-    fread(contents, fsize, 1, f);
-    fclose(f);
-
-    contents[fsize] = 0;
-
-    // /asdf/b/in/c.md -> /asdf/b/out/c.md
-    // /asdf/b/in + c.md -> /asdf/b/out + c.md
-    printf("p: %s\n", path);
-    printf("r: %s\n", root);
-    printf("o: %s\n", out);
-    char *no_pre = trim_prefix(path, root);
-    printf("%s\n", no_pre);
-    char *changed_ext = change_ext(no_pre, ".html");
-    printf("%s\n", changed_ext);
-    char *html_path = join_path(out, changed_ext);
-    printf("%s\n", html_path);
-
+    fclose(fopen(html_path, "w"));
     FILE *file = fopen(html_path, "a");
 
     Context c = {file};
-    md_html(contents, fsize + 1, process_output, (void *)&c, MD_HTML_FLAG_DEBUG,
+    fprintf(file, "%s", html_page_begin);
+    md_html(contents, strlen(contents), process_output, (void *)&c,
+            MD_HTML_FLAG_DEBUG,
             MD_FLAG_TABLES | MD_FLAG_TASKLISTS | MD_FLAG_STRIKETHROUGH |
                 MD_FLAG_LATEXMATHSPANS | MD_FLAG_WIKILINKS | MD_FLAG_UNDERLINE);
+    fprintf(file, "%s", html_page_end);
 
     // TODO:
     // free contents
     fclose(file);
     break;
-  case S_IFBLK:
-    printf("block device\n");
-    break;
-  case S_IFCHR:
-    printf("character device\n");
-    break;
-  case S_IFIFO:
-    printf("FIFO/pipe\n");
-    break;
   case S_IFLNK:
-    printf("symlink\n");
-    break;
-  case S_IFSOCK:
-    printf("socket\n");
+    // TODO:
+    printf("TODO: Symlink\n");
     break;
   default:
-    printf("unknown?\n");
+    printf("Unsupported \"file\" encountered: %s\n", path);
     break;
   }
 
   return 0;
 }
 
-int rmdir_rec(const char *path) {
-  struct dirent *entry;
-  DIR *dp = opendir(path);
-
-  if (dp == NULL) {
-    printf("Error opening directory '%s'.\n", path);
-    closedir(dp);
-    return 1;
-  }
-
-  while ((entry = readdir(dp)) != NULL) {
-    if (is_rel_dot(entry->d_name))
-      continue;
-    char full_path[sizeof(path) + sizeof(entry->d_name)];
-    snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
-    struct stat st;
-
-    if (stat(full_path, &st) == 0) {
-      if (S_ISDIR(st.st_mode)) {
-        rmdir_rec(full_path);
-      } else if (unlink(full_path) != 0) {
-        printf("Error deleting file '%s'.\n", full_path);
-        closedir(dp);
-        return 1;
-      }
-    }
-  }
-
-  closedir(dp);
-
-  if (rmdir(path) != 0) {
-    printf("Error removing directory '%s'.\n", path);
-    return 1;
-  }
-
-  return 0;
-}
-
-int create_out(char *out) {
-  // TODO: check for path type and act accordingly
+int create_out(const char *out) {
   struct stat st;
   if (stat(out, &st) == 0 && (st.st_mode & S_IFDIR))
-    return 1;
-  // TODO:
+    return 0;
+  // TODO: rm file if present
   // if (rmdir_rec(out) != 0)
   //   return 1;
 
@@ -172,26 +116,22 @@ int create_out(char *out) {
   return 0;
 }
 
-char *to_dir(char *path) {
-  struct stat st;
-  if (stat(path, &st) == 0 && (st.st_mode & S_IFREG))
-    return parent(path);
-  return path;
-}
-
 int main(int argc, char **argv) {
   if (argc != 3) {
     fprintf(stderr, "Usage: %s <input_path> <output_path>\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
-  char *in = to_dir(argv[1]);
-  char *out = to_dir(argv[2]);
+  const char *in = closest_dir(argv[1]);
+  const char *out = closest_dir(argv[2]);
 
   if (create_out(out) != 0) {
     fprintf(stderr, "Failed to create %s", out);
     exit(EXIT_FAILURE);
   }
+
+  // html_page = read_file("./assets/page.html");
+  // len_page = strlen(html_page);
 
   if (generate(argv[1], in, out) != 0) {
     fprintf(stderr, "Failed to generate %s", in);

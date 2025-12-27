@@ -29,7 +29,7 @@
       src = fs.toSource {
         inherit root;
         fileset = fs.intersection (fs.gitTracked root) (
-          fs.fileFilter (f: (f.hasExt "c") || (f.hasExt "h")) ./src
+          fs.fileFilter (f: (f.name == "Makefile") || (f.hasExt "c") || (f.hasExt "h")) root
         );
       };
       pname = "yamdw";
@@ -38,36 +38,56 @@
       asdf = src;
       devShells = eachSystem (pkgs: {
         default = pkgs.mkShellNoCC {
-          packages = with pkgs; [ tinycc ];
+          packages = with pkgs; [
+            tinycc
+            gnumake
+            gcc
+          ];
         };
       });
 
       packages = eachSystem (
         pkgs:
         let
-          inherit (pkgs) coreutils dash tinycc;
-          inherit (pkgs.lib) getExe concatMapStringsSep;
+          inherit (pkgs)
+            toybox
+            tinycc
+            gnumake
+            stdenv
+            ;
+          inherit (pkgs.lib) getExe getExe';
+          mkTarget =
+            target:
+            stdenv.mkDerivation {
+              inherit pname;
+              version = "0.0.1${if target == "release" then "" else "-" + target}";
+              inherit src;
+
+              buildPhase = ''
+                mkdir -p "$out/bin"
+              '';
+              installPhase = ''
+                OUT="${pname}" TARGETDIR="$out/bin" make ${target}
+              '';
+
+              # args = [
+              #   "-c"
+              #   ''
+              #     PATH="$PATH:${toybox}/bin:/bin"
+              #     CC="${getExe tinycc}"
+              #     OUT="${pname}"
+              #     TARGETDIR="$out/bin"
+              #     mkdir -p "$src/.build"
+              #     mkdir -p "$out/bin" &&
+              #     cd "$src" &&
+              #     ${getExe' gnumake "make"} ${target}
+              #   ''
+              # ];
+            };
         in
         {
-          default = derivation {
-            name = "${pname}-0.0.1";
-            inherit (pkgs) system;
-            inherit src;
-            builder = getExe dash;
-            args = [
-              "-c"
-              # TODO: static
-              ''
-                PATH="$PATH:${coreutils}/bin"
-                mkdir -p "$out/bin" &&
-                ${getExe tinycc} "$src/src/"*.h "$src/src/"*.c \
-                  "$src/src/md4c/"*.h "$src/src/md4c/"*.c \
-                  -o "${pname}" -std=c99 -fsanitize=address -O3 &&
-                  # -Wall -Werror -Wextra
-                mv "${pname}" "$out/bin"
-              ''
-            ];
-          };
+          default = mkTarget "release";
+          debug = mkTarget "debug";
         }
       );
 

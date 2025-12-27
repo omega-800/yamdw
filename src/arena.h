@@ -375,7 +375,10 @@ char *arena_vsprintf(Arena *a, const char *format, va_list args)
 {
     va_list args_copy;
     va_copy(args_copy, args);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
     int n = vsnprintf(NULL, 0, format, args_copy);
+#pragma GCC diagnostic pop
     va_end(args_copy);
 
     ARENA_ASSERT(n >= 0);

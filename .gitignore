@@ -2,6 +2,7 @@ result
 .direnv
 .build
 TODO.md
+bin
 test.md
 test
 *.d
