@@ -13,6 +13,10 @@ int is_rel_dot(const char *path) {
   return strcmp(path, ".") == 0 || strcmp(path, "..") == 0;
 }
 
+int is_rel(const char *path) {
+  return is_rel_dot(path) || path[0] != '/';
+}
+
 char *join_path(const char *pre, const char *post) {
   size_t pre_len = strlen(pre);
   int ends_slsh = pre && *pre && pre[pre_len - 1] == '/';

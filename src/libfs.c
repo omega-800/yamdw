@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -96,11 +97,12 @@ out_error:
   return 1;
 }
 
-const char *closest_dir(const char *path) {
+char *closest_dir(const char *path) {
   struct stat st;
   if (stat(path, &st) == 0 && (st.st_mode & S_IFREG))
     return parent(path);
-  return path;
+  // TODO: if not exists
+  return arena_strdup(&arena, path);
 }
 
 char *read_file(const char *path) {
@@ -117,6 +119,20 @@ char *read_file(const char *path) {
     // welp
   }
 
-  contents[fsize] = 0;
+  contents[fsize] = '\0';
   return contents;
+}
+
+void create_parent_dirs(const char *path) {
+  // TODO: check if exists
+  char *dir_path = closest_dir(path);
+  char *next_sep = strchr(path, '/');
+  while (next_sep != NULL) {
+    int dir_path_len = next_sep - path;
+    arena_memcpy(dir_path, path, dir_path_len);
+    dir_path[dir_path_len] = '\0';
+    mkdir(dir_path, S_IRWXU|S_IRWXG|S_IROTH);
+    next_sep = strchr(next_sep + 1, '/');
+  }
+  // TODO: free dir_path
 }
