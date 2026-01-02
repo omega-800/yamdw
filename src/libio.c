@@ -1,5 +1,3 @@
-#include "arena.h"
-#include "libpath.h"
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -7,6 +5,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "arena.h"
+#include "libpath.h"
 
 extern Arena arena;
 
@@ -99,10 +100,10 @@ out_error:
 
 char *closest_dir(const char *path) {
   struct stat st;
-  if (stat(path, &st) == 0 && (st.st_mode & S_IFREG))
-    return parent(path);
+  if (stat(path, &st) == 0 && (st.st_mode & S_IFDIR))
+    return arena_strdup(&arena, path);
+  return parent(path);
   // TODO: if not exists
-  return arena_strdup(&arena, path);
 }
 
 char *read_file(const char *path) {

@@ -6,34 +6,55 @@
 
 #include "arena.h"
 #include "libpath.h"
+#include "libstr.h"
 // rfc 1738
 // rfc 3986
 
-extern char *curpath;
+extern char inpath[PATH_MAX];
+extern char outpath[PATH_MAX];
 extern Arena arena;
 
-char *convert_uri(char *rel, char *uri) {
-  int off = (uri[0] == '.' || uri[0] == '/') + uri[1] == '/';
+char *handle_existing_path(char *path) {
+  char resolved_path[PATH_MAX]; // TODO:
+  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
+  printf("in: %s, out: %s \n", inpath, outpath);
 
-  // TODO:
-  size_t len_uri = strlen(uri);
-  size_t len_rel = strlen(rel);
-  size_t len_full = len_uri - off + len_rel + 1;
+  if (realpath(path, resolved_path) != NULL) {
+    if (!ends_with(resolved_path, inpath)) {
+      fprintf(stderr, "Trying to access '%s' which is outside of root '%s'",
+              resolved_path, inpath);
+      return NULL;
+    }
+    // OK
+    // TODO:
+    if (ends_with(path, ".md"))
+      return change_ext(path, ".html");
+    else 
+      return path;
+  } else {
+    fprintf(stderr, "Failed to get real path '%s'", path);
+  }
+  return NULL;
+}
+
+char *concat(char *fst, char *snd) {
+  size_t len_fst = strlen(fst);
+  size_t len_snd = strlen(snd);
+  size_t len_full = len_fst + len_snd;
   char *full = arena_alloc(&arena, len_full);
-  arena_memcpy(full, rel, len_rel);
-  arena_memcpy(full + len_rel, uri + off, len_uri - off);
+  arena_memcpy(full, fst, len_fst);
+  arena_memcpy(full + len_fst, snd, len_snd);
   full[len_full] = '\0';
+  return full;
+}
 
-  char resolved_path[65536]; // TODO:
+char *convert_uri(char *uri, char *rel) {
+  int off = (uri[0] == '.' || uri[0] == '/') + uri[1] == '/';
+  char *full = concat(rel, uri + off);
 
   struct stat st;
   if (stat(full, &st) == 0) {
-    if (realpath(full, resolved_path) != NULL) {
-      if(!ends_with(resolved_path, )) 
-      // OK
-    } else {
-      // TODO:
-    }
+    return handle_existing_path(full);
   } else {
     char *filename = base(uri);
     char *parent_dir = parent(full);
@@ -41,36 +62,16 @@ char *convert_uri(char *rel, char *uri) {
     DIR *dir = opendir(parent_dir);
     if (dir != NULL) {
       while ((dp = readdir(dir)) != NULL) {
-        if (is_rel_dot(dp->d_name))
-          continue;
-        if (strncmp(dp->d_name, filename, strlen(dp->d_name)) != 0)
-          continue;
-        // TODO:
+        // if (is_rel_dot(dp->d_name))
+        // continue;
+        // TODO: further checks
+        // TODO: dir/index.md
+        if (strncmp(dp->d_name, filename, strlen(dp->d_name)) == 0)
+          return handle_existing_path(concat(parent_dir, dp->d_name));
       }
       closedir(dir);
-    } else {
-      // URI
     }
   }
 
-  // TODO:
-  // check if inside cur dir
-  // check if exists
-  // handle link to external url vs dir vs md/html/img vs bin/exe
-  // convert file without ending to full filename (vimwiki)
-  // convert path to point from root
   return uri;
 }
-
-// check if uri starts with file:// -> strip
-// check if uri exists on fs (glob.h <file>\.*)?
-// yes              no -> check if exists without file ending
-// check            =normal a
-// if points to markdown -> change to .html
-
-// file://
-// ./
-// /
-// asdf
-// asdf/asdf
-// asdf.d/asdf

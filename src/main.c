@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "libfs.h"
+#include "libio.h"
 #include "libpath.h"
 #include "libstr.h"
 #include "md4c/md4c-html.h"
@@ -22,7 +22,11 @@
 // TODO: MD_PARSER enter_span(MD_SPAN_A)
 
 Arena arena = {0};
-char curpath[MAX_BUF] = {0};
+
+// char curpath[PATH_MAX] = "";
+char inpath[PATH_MAX] = "";
+char outpath[PATH_MAX] = "";
+
 // char *html_page = "";
 // int len_page = 0;
 char *html_page_begin = "<html>\n<body>\n";
@@ -36,16 +40,15 @@ void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
   fprintf(((Context *)userdata)->file, "%*.*s", size, size, text);
 }
 
-char *to_out_path(const char *path, const char *root, const char *out,
-                  const int to_html) {
+char *to_out_path(const char *path, const int to_html) {
   // TODO: better memory management
-  char *new_path = trim_prefix(path, root);
+  char *new_path = trim_prefix(path, inpath);
   if (to_html)
     new_path = change_ext(new_path, ".html");
-  return join_path(out, new_path);
+  return join_path(outpath, new_path);
 }
 
-int generate(const char *path, const char *root, const char *out) {
+int generate(const char *path) {
   struct stat sb;
 
   if (lstat(path, &sb) == -1) {
@@ -64,7 +67,7 @@ int generate(const char *path, const char *root, const char *out) {
     while ((dp = readdir(dir)) != NULL) {
       if (is_rel_dot(dp->d_name))
         continue;
-      if (generate(join_path(path, dp->d_name), root, out) == 0)
+      if (generate(join_path(path, dp->d_name)) == 0)
         continue;
       closedir(dir);
       return 1;
@@ -72,11 +75,11 @@ int generate(const char *path, const char *root, const char *out) {
     closedir(dir);
     break;
   case S_IFREG:
-    char *html_path = to_out_path(path, root, out, 1);
+    char *html_path = to_out_path(path, 1);
     create_parent_dirs(html_path);
 
     if (!has_ext(path, ".md")) {
-      char *new_path = to_out_path(path, root, out, 0);
+      char *new_path = to_out_path(path, 0);
       cp(path, new_path);
       break;
     }
@@ -110,27 +113,51 @@ int generate(const char *path, const char *root, const char *out) {
   return 0;
 }
 
-int create_out(const char *out) {
+int create_out(const char *path) {
   struct stat st;
-  if (stat(out, &st) == 0 && (st.st_mode & S_IFDIR))
+  if (stat(path, &st) == 0 && (st.st_mode & S_IFDIR))
     return 0;
   // TODO: rm file if present
   // if (rmdir_rec(out) != 0)
   //   return 1;
 
-  if (mkdir(out, 0700) != 0)
+  if (mkdir(path, 0700) != 0)
     return 1;
 
   return 0;
 }
 
 int main(int argc, char **argv) {
-  if (getcwd(curpath, MAX_BUF) == NULL) {
-    perror("getcwd");
+  // TODO: getopt
+  if (argc != 3) {
+    fprintf(stderr, "Usage: %s <input_path> <output_path>\n", argv[0]);
     exit(EXIT_FAILURE);
   }
 
-  printf("asdfasdfasdfasdfasdfasdfasdf: %s", curpath);
+  // if (getcwd(curpath, MAX_BUF) == NULL) {
+  //   perror("getcwd");
+  //   exit(EXIT_FAILURE);
+  // }
+
+  const char *in = closest_dir(argv[1]);
+
+  if (realpath(in, inpath) == NULL) {
+    fprintf(stderr, "Failed to get real input path '%s'", argv[1]);
+    exit(EXIT_FAILURE);
+  }
+
+  const char *out = closest_dir(argv[2]);
+
+  if (create_out(out) != 0) {
+    fprintf(stderr, "Failed to create '%s'", outpath);
+    exit(EXIT_FAILURE);
+  }
+
+  if (realpath(out, outpath) == NULL) {
+    fprintf(stderr, "Failed to get real output path '%s'", argv[2]);
+    exit(EXIT_FAILURE);
+  }
+
   printf("test/in/asdf: %s\n", convert_uri("test/in/asdf", "test/in"));
   printf("test/in/asdf/asdf.md: %s\n", convert_uri("test/in/asdf/asdf.md", "test/in"));
   printf("test/in/index.md: %s\n", convert_uri("test/in/index.md", "test/in"));
@@ -145,25 +172,11 @@ int main(int argc, char **argv) {
   printf(": %s\n", convert_uri("", "test/in"));
   exit(0);
 
-  // TODO: getopt
-  if (argc != 3) {
-    fprintf(stderr, "Usage: %s <input_path> <output_path>\n", argv[0]);
-    exit(EXIT_FAILURE);
-  }
-
-  const char *in = closest_dir(argv[1]);
-  const char *out = closest_dir(argv[2]);
-
-  if (create_out(out) != 0) {
-    fprintf(stderr, "Failed to create %s", out);
-    exit(EXIT_FAILURE);
-  }
-
   // html_page = read_file("./assets/page.html");
   // len_page = strlen(html_page);
 
-  if (generate(argv[1], in, out) != 0) {
-    fprintf(stderr, "Failed to generate %s", in);
+  if (generate(argv[1]) != 0) {
+    fprintf(stderr, "Failed to generate '%s'", inpath);
     exit(EXIT_FAILURE);
   }
   arena_free(&arena);
