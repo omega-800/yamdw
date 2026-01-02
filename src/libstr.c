@@ -4,6 +4,13 @@
 
 extern Arena arena;
 
+int ends_with(const char *str, const char *end) {
+  size_t len_str = strlen(str);
+  size_t len_end = strlen(end);
+
+  return strncmp(str + len_str - len_end, end, len_end) == 0; 
+}
+
 char *str_replace(char *orig, char *rep, char *with) {
   char *result;
   char *ins;

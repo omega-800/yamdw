@@ -12,24 +12,31 @@
 extern char *curpath;
 extern Arena arena;
 
-char *convert_uri(char *uri, char *rel) {
+char *convert_uri(char *rel, char *uri) {
   int off = (uri[0] == '.' || uri[0] == '/') + uri[1] == '/';
+
   // TODO:
-  char *full = arena_strdup(&arena, rel);
-  strncat(full, uri + off, strlen(uri) - off + strlen(rel) + 1);
+  size_t len_uri = strlen(uri);
+  size_t len_rel = strlen(rel);
+  size_t len_full = len_uri - off + len_rel + 1;
+  char *full = arena_alloc(&arena, len_full);
+  arena_memcpy(full, rel, len_rel);
+  arena_memcpy(full + len_rel, uri + off, len_uri - off);
+  full[len_full] = '\0';
 
   char resolved_path[65536]; // TODO:
 
   struct stat st;
-  if (stat(uri, &st) == 0) {
-    if (realpath(uri, resolved_path) != NULL) {
+  if (stat(full, &st) == 0) {
+    if (realpath(full, resolved_path) != NULL) {
+      if(!ends_with(resolved_path, )) 
       // OK
     } else {
       // TODO:
     }
   } else {
     char *filename = base(uri);
-    char *parent_dir = parent(uri);
+    char *parent_dir = parent(full);
     struct dirent *dp;
     DIR *dir = opendir(parent_dir);
     if (dir != NULL) {

@@ -28,7 +28,7 @@ char curpath[MAX_BUF] = {0};
 char *html_page_begin = "<html>\n<body>\n";
 char *html_page_end = "</body>\n</html>\n";
 
-typedef struct Context {
+typedef struct {
   FILE *file;
 } Context;
 
