@@ -158,18 +158,24 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
 
-  printf("test/in/asdf: %s\n", convert_uri("test/in/asdf", "test/in"));
-  printf("test/in/asdf/asdf.md: %s\n", convert_uri("test/in/asdf/asdf.md", "test/in"));
-  printf("test/in/index.md: %s\n", convert_uri("test/in/index.md", "test/in"));
-  printf("test/in/asdf/img.png: %s\n", convert_uri("test/in/asdf/img.png", "test/in"));
-  printf("/etc/passwd: %s\n", convert_uri("/etc/passwd", "test/in"));
-  printf("./bonkers: %s\n", convert_uri("./bonkers", "test/in"));
-  printf("test/in/bonkers: %s\n", convert_uri("test/in/bonkers", "test/in"));
-  printf("test/in/../../README.md: %s\n", convert_uri("test/in/../../README.md", "test/in"));
-  printf("./README.md: %s\n", convert_uri("./README.md", "test/in"));
-  printf("asdf@asdf.asdf: %s\n", convert_uri("asdf@asdf.asdf", "test/in"));
-  printf("https://a.a: %s\n", convert_uri("https://a.a", "test/in"));
-  printf(": %s\n", convert_uri("", "test/in"));
+  printf("test/in/asdf: %s\n", convert_uri("asdf", ""));
+  printf("test/in/asdf: %s\n", convert_uri("/asdf", ""));
+  printf("test/in/asdf: %s\n", convert_uri("./asdf", ""));
+
+  printf("test/in/asdf: %s\n", convert_uri("asdf/asdf.md", ""));
+  printf("test/in/asdf: %s\n", convert_uri("asdf.md", "asdf"));
+  printf("test/in/asdf: %s\n", convert_uri("asdf.md", "asdf/")); // breaks
+  printf("test/in/asdf: %s\n", convert_uri("/asdf.md", "asdf"));
+  printf("test/in/asdf: %s\n", convert_uri("./asdf.md", "asdf"));
+  printf("test/in/index.md: %s\n", convert_uri("index.md", ""));
+  printf("test/in/asdf/img.png: %s\n", convert_uri("asdf/img.png", ""));
+  printf("/etc/passwd: %s\n", convert_uri("/etc/passwd", ""));
+  printf("./bonkers: %s\n", convert_uri("./bonkers", ""));
+  printf("test/in/bonkers: %s\n", convert_uri("test/in/bonkers", ""));
+  printf("test/in/../../README.md: %s\n", convert_uri("../../README.md", ""));
+  printf("./README.md: %s\n", convert_uri("./README.md", ""));
+  printf("asdf@asdf.asdf: %s\n", convert_uri("asdf@asdf.asdf", ""));
+  printf("https://a.a: %s\n", convert_uri("https://a.a", ""));
   exit(0);
 
   // html_page = read_file("./assets/page.html");
