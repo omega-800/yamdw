@@ -78,3 +78,7 @@ char *change_ext(const char *path, const char *new_ext) {
   strcat(result, new_ext);
   return result;
 }
+
+int is_abs(const char *path) {
+  return strlen(path) > 0 && path[0] == '/';
+}

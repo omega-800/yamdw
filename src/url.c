@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 
 #include "arena.h"
+#include "libio.h"
 #include "libpath.h"
 #include "libstr.h"
 // rfc 1738
@@ -14,99 +15,72 @@ extern char inpath[PATH_MAX];
 extern char outpath[PATH_MAX];
 extern Arena arena;
 
-char *handle_existing_path(char *path) {
-  printf("AAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n");
-  printf("in: %s, out: %s \n", inpath, outpath);
+const char *handle_existing_path(const char *path) {
+  size_t len_in = strlen(inpath);
+  char *resolved_path = arena_alloc(&arena, PATH_MAX);
+  if (realpath(path, resolved_path) == NULL) {
+    fprintf(stderr, "Failed to resolve '%s'\n", path);
+    perror("realpath");
+    return path;
+  }
 
-  // TODO: resolve path if ..
-  if (strncmp(path, inpath, strlen(inpath)) != 0) {
-    fprintf(stderr, "Trying to access '%s' which is outside of root '%s'",
-            path, inpath);
+  if (strncmp(resolved_path, inpath, len_in) != 0) {
+    fprintf(stderr, "Trying to access '%s' which is outside of root '%s'\n",
+            resolved_path, inpath);
     return NULL;
   }
-  // OK
-  // TODO:
-  if (ends_with(path, ".md"))
-    return change_ext(path, ".html");
-  else 
-    return path;
-  return NULL;
-}
 
-char *concat(int n, ...) {
-  printf("NRARGS:(%i)\n", n);
-  va_list args;
-  size_t len_full = 1;
-
-  va_start(args, n);  
-  for (int i = 0; i < n; i++) 
-    len_full += strlen(va_arg(args, char*));
-  va_end(args);
-
-  char *full = arena_alloc(&arena, len_full);
-
-  size_t len_cur = 0;
-  va_start(args, n);  
-  for (int i = 0; i < n; i++) {
-    char *part = va_arg(args, char*);
-
-    printf("PART(%i): ", i);
-    printf("%s\n", part);
-
-    size_t len_part = strlen(part);
-    arena_memcpy(full + len_cur, part, len_part);
-    len_cur += len_part;
-  }
-  va_end(args);
-
-  full[len_full] = '\0';
-  return full;
+  char *rel_path = resolved_path + len_in;
+  if (ends_with(rel_path, ".md"))
+    return change_ext(rel_path, ".html");
+  else
+    return rel_path;
 }
 
 int offset(char *path) {
-  size_t len = strlen(path);
-  return (len > 0 && (path[0] == '.' || path[0] == '/')) + (len > 1 && path[1] == '/');
+  return strlen(path) > 1 && path[0] == '.' && path[1] == '/' ? 2 : 0;
 }
 
-char *convert_uri(char *uri, char *rel) {
-  int off_uri = offset(uri);
-  int off_rel = offset(rel);
-  printf("IN: %s REL: %s URI: %s\n", inpath, rel + off_rel, uri + off_uri);
-  char *full = strlen(rel) - off_rel > 0 
-    ? concat(5, inpath, "/", rel + off_rel, "/", uri + off_uri) 
-    : concat(3, inpath, "/", uri + off_uri);
-  printf("\n[D] '%s': ", full);
+const char *convert_uri(const char *uri, const char *rel) {
+  const char *full;
+  size_t len_rel = strlen(rel);
+
+  // TODO: check first if file or other protocol
+
+  if (len_rel == 0 && is_abs(uri)) {
+    full = uri;
+  } else if (is_abs(rel)) {
+    full = concat(3, rel, "/", uri);
+  } else {
+    full = concat(5, inpath, "/", rel, "/", uri);
+  }
 
   struct stat st;
   if (stat(full, &st) == 0) {
-    printf("exists, ");
-    return handle_existing_path(full);
+    if (st.st_mode & S_IFDIR && has_file(full, "index.md")) {
+      return handle_existing_path(concat(2, full, "/index.md"));
+    } else {
+      return handle_existing_path(full);
+    }
   } else {
-    perror("stat");
-    printf("notexists, ");
     char *filename = base(uri);
     char *parent_dir = parent(full);
+
     struct dirent *dp;
     DIR *dir = opendir(parent_dir);
-    if (dir != NULL) {
-      printf("dir exists, ");
-      while ((dp = readdir(dir)) != NULL) {
-        // if (is_rel_dot(dp->d_name))
-        // continue;
-        // TODO: further checks
-        // TODO: dir/index.md
-        if (strncmp(dp->d_name, filename, strlen(dp->d_name)) == 0) {
-          printf("file exists, ");
-          char *res = handle_existing_path(concat(3, parent_dir, "/", dp->d_name));
-          closedir(dir);
-          return res;
-        }
+    if (dir == NULL)
+      return uri;
+    while ((dp = readdir(dir)) != NULL) {
+      // TODO: further checks
+      if (strncmp(dp->d_name, filename, strlen(dp->d_name)) == 0) {
+        const char *res =
+            handle_existing_path(concat(3, parent_dir, "/", dp->d_name));
+        closedir(dir);
+        return res;
       }
-      printf("file notexists, ");
-      closedir(dir);
     }
+    closedir(dir);
   }
-
-  printf("default, ");
+  // TODO: if above checks fail and path is abs
   return uri;
 }

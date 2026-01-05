@@ -49,3 +49,35 @@ char *str_replace(char *orig, char *rep, char *with) {
   strcpy(tmp, orig);
   return result;
 }
+
+char *concat(int n, ...) {
+  va_list args;
+  size_t len_full = 0;
+
+  va_start(args, n);
+  for (int i = 0; i < n; i++)
+    len_full += strlen(va_arg(args, char *));
+  va_end(args);
+
+  char *full = arena_alloc(&arena, len_full);
+
+  size_t len_cur = 0;
+  va_start(args, n);
+  for (int i = 0; i < n; i++) {
+    char *part = va_arg(args, char *);
+
+    size_t len_part = strlen(part);
+    arena_memcpy(full + len_cur, part, len_part);
+    len_cur += len_part;
+  }
+  va_end(args);
+
+  full[len_full] = '\0';
+  return full;
+}
+
+char *until(char *str, int n) {
+  char *new = arena_alloc(&arena, n); 
+  strncpy(new, str, n);
+  return new;
+}

@@ -1,5 +1,4 @@
 #include <dirent.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +7,6 @@
 
 #include "libio.h"
 #include "libpath.h"
-#include "libstr.h"
 #include "md4c/md4c-html.h"
 #include "url.h"
 #define ARENA_IMPLEMENTATION
@@ -31,10 +29,6 @@ char outpath[PATH_MAX] = "";
 // int len_page = 0;
 char *html_page_begin = "<html>\n<body>\n";
 char *html_page_end = "</body>\n</html>\n";
-
-typedef struct {
-  FILE *file;
-} Context;
 
 void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
   fprintf(((Context *)userdata)->file, "%*.*s", size, size, text);
@@ -89,7 +83,8 @@ int generate(const char *path) {
     fclose(fopen(html_path, "w"));
     FILE *file = fopen(html_path, "a");
 
-    Context c = {file};
+    // TODO:
+    Context c = {file, path};
     fprintf(file, "%s", html_page_begin);
     md_html(contents, strlen(contents), process_output, (void *)&c,
             MD_FLAG_TABLES | MD_FLAG_TASKLISTS | MD_FLAG_STRIKETHROUGH |
@@ -157,29 +152,6 @@ int main(int argc, char **argv) {
     fprintf(stderr, "Failed to get real output path '%s'", argv[2]);
     exit(EXIT_FAILURE);
   }
-
-  printf("test/in/asdf: %s\n", convert_uri("asdf", ""));
-  printf("test/in/asdf: %s\n", convert_uri("/asdf", ""));
-  printf("test/in/asdf: %s\n", convert_uri("./asdf", ""));
-
-  printf("test/in/asdf: %s\n", convert_uri("asdf/asdf.md", ""));
-  printf("test/in/asdf: %s\n", convert_uri("asdf.md", "asdf"));
-  printf("test/in/asdf: %s\n", convert_uri("asdf.md", "asdf/")); // breaks
-  printf("test/in/asdf: %s\n", convert_uri("/asdf.md", "asdf"));
-  printf("test/in/asdf: %s\n", convert_uri("./asdf.md", "asdf"));
-  printf("test/in/index.md: %s\n", convert_uri("index.md", ""));
-  printf("test/in/asdf/img.png: %s\n", convert_uri("asdf/img.png", ""));
-  printf("/etc/passwd: %s\n", convert_uri("/etc/passwd", ""));
-  printf("./bonkers: %s\n", convert_uri("./bonkers", ""));
-  printf("test/in/bonkers: %s\n", convert_uri("test/in/bonkers", ""));
-  printf("test/in/../../README.md: %s\n", convert_uri("../../README.md", ""));
-  printf("./README.md: %s\n", convert_uri("./README.md", ""));
-  printf("asdf@asdf.asdf: %s\n", convert_uri("asdf@asdf.asdf", ""));
-  printf("https://a.a: %s\n", convert_uri("https://a.a", ""));
-  exit(0);
-
-  // html_page = read_file("./assets/page.html");
-  // len_page = strlen(html_page);
 
   if (generate(argv[1]) != 0) {
     fprintf(stderr, "Failed to generate '%s'", inpath);

@@ -28,6 +28,12 @@
 
 #include "md4c-html.h"
 #include "entity.h"
+#include "md4c.h"
+
+#include "../url.h"
+#include "../libstr.h"
+
+static const char *relpath;
 
 
 #if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 199409L
@@ -323,11 +329,38 @@ render_open_td_block(MD_HTML* r, const MD_CHAR* cell_type, const MD_BLOCK_TD_DET
     }
 }
 
-static void
-render_open_a_span(MD_HTML* r, const MD_SPAN_A_DETAIL* det)
+// static void
+// render_open_a_span(MD_HTML* r, const MD_SPAN_A_DETAIL* det)
+// {
+//     RENDER_VERBATIM(r, "<a href=\"");
+//     render_attribute(r, &det->href, render_url_escaped);
+//
+//     if(det->title.text != NULL) {
+//         RENDER_VERBATIM(r, "\" title=\"");
+//         render_attribute(r, &det->title, render_html_escaped);
+//     }
+//
+//     RENDER_VERBATIM(r, "\">");
+// }
+
+static void 
+render_link(MD_HTML* r, const MD_CHAR* data, MD_SIZE size)
 {
+  (void)(size);
+  char *uri = until((char *)data, (int)size);
+  const char *ndata = convert_uri(uri, relpath);
+
+  render_url_escaped(r, (MD_CHAR *)ndata, (MD_SIZE)strlen(ndata));
+}
+
+static void
+render_open_a_span(MD_HTML* r, const MD_SPAN_A_DETAIL* det, void* userdata)
+{
+    relpath = ((Context *)userdata)->relpath;
+
     RENDER_VERBATIM(r, "<a href=\"");
-    render_attribute(r, &det->href, render_url_escaped);
+    // render_attribute(r, &det->href, render_url_escaped);
+    render_attribute(r, &det->href, render_link);
 
     if(det->title.text != NULL) {
         RENDER_VERBATIM(r, "\" title=\"");
@@ -456,7 +489,8 @@ enter_span_callback(MD_SPANTYPE type, void* detail, void* userdata)
         case MD_SPAN_EM:                RENDER_VERBATIM(r, "<em>"); break;
         case MD_SPAN_STRONG:            RENDER_VERBATIM(r, "<strong>"); break;
         case MD_SPAN_U:                 RENDER_VERBATIM(r, "<u>"); break;
-        case MD_SPAN_A:                 render_open_a_span(r, (MD_SPAN_A_DETAIL*) detail); break;
+        // TODO: 
+        case MD_SPAN_A:                 render_open_a_span(r, (MD_SPAN_A_DETAIL*) detail, userdata); break;
         case MD_SPAN_IMG:               render_open_img_span(r, (MD_SPAN_IMG_DETAIL*) detail); break;
         case MD_SPAN_CODE:              RENDER_VERBATIM(r, "<code>"); break;
         case MD_SPAN_DEL:               RENDER_VERBATIM(r, "<del>"); break;

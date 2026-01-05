@@ -11,5 +11,6 @@ char *ext(const char *filename);
 char *trim_suffix(const char *path, const char *suffix); 
 char *trim_prefix(const char *path, const char *prefix);
 char *change_ext(const char *path, const char *new_ext);
+int is_abs(const char *path);
 
 #endif

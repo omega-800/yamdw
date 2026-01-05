@@ -132,8 +132,28 @@ void create_parent_dirs(const char *path) {
     int dir_path_len = next_sep - path;
     arena_memcpy(dir_path, path, dir_path_len);
     dir_path[dir_path_len] = '\0';
-    mkdir(dir_path, S_IRWXU|S_IRWXG|S_IROTH);
+    mkdir(dir_path, S_IRWXU | S_IRWXG | S_IROTH);
     next_sep = strchr(next_sep + 1, '/');
   }
   // TODO: free dir_path
+}
+
+int has_file(const char *dirpath, const char *filename) {
+  int res = 0;
+
+  struct dirent *dp;
+  DIR *dir = opendir(dirpath);
+
+  if (dir == NULL)
+    return res;
+
+  while ((dp = readdir(dir)) != NULL) {
+    if (strncmp(dp->d_name, filename, strlen(dp->d_name)) == 0) {
+      res = 1;
+      break;
+    }
+  }
+
+  closedir(dir);
+  return res;
 }

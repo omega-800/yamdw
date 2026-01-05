@@ -7,5 +7,6 @@ int cp(const char *from, const char *to);
 char *closest_dir(const char *path);
 char *read_file(const char *path);
 void create_parent_dirs(const char *path);
+int has_file(const char *dirpath, const char *filename);
 
 #endif
