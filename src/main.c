@@ -24,6 +24,7 @@ Arena arena = {0};
 // char curpath[PATH_MAX] = "";
 char inpath[PATH_MAX] = "";
 char outpath[PATH_MAX] = "";
+size_t inpath_len = 0;
 
 // char *html_page = "";
 // int len_page = 0;
@@ -36,7 +37,7 @@ void process_output(const MD_CHAR *text, MD_SIZE size, void *userdata) {
 
 char *to_out_path(const char *path, const int to_html) {
   // TODO: better memory management
-  char *new_path = trim_prefix(path, inpath);
+  char *new_path = trim_prefix(path, inpath + strlen(inpath) - inpath_len);
   if (to_html)
     new_path = change_ext(new_path, ".html");
   return join_path(outpath, new_path);
@@ -84,7 +85,8 @@ int generate(const char *path) {
     FILE *file = fopen(html_path, "a");
 
     // TODO:
-    Context c = {file, path};
+    Context c = {file, parent(path) + inpath_len + 1};
+
     fprintf(file, "%s", html_page_begin);
     md_html(contents, strlen(contents), process_output, (void *)&c,
             MD_FLAG_TABLES | MD_FLAG_TASKLISTS | MD_FLAG_STRIKETHROUGH |
@@ -135,6 +137,7 @@ int main(int argc, char **argv) {
   // }
 
   const char *in = closest_dir(argv[1]);
+  inpath_len = strlen(in);
 
   if (realpath(in, inpath) == NULL) {
     fprintf(stderr, "Failed to get real input path '%s'", argv[1]);

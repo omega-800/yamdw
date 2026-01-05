@@ -100,10 +100,10 @@ out_error:
 
 char *closest_dir(const char *path) {
   struct stat st;
-  if (stat(path, &st) == 0 && (st.st_mode & S_IFDIR))
+  // TODO: if not exists
+  if (stat(path, &st) != 0 || (stat(path, &st) == 0 && (st.st_mode & S_IFDIR)))
     return arena_strdup(&arena, path);
   return parent(path);
-  // TODO: if not exists
 }
 
 char *read_file(const char *path) {

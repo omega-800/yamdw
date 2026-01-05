@@ -347,7 +347,8 @@ static void
 render_link(MD_HTML* r, const MD_CHAR* data, MD_SIZE size)
 {
   (void)(size);
-  char *uri = until((char *)data, (int)size);
+  char *uri = until((char *)data, (int)size+1);
+  uri[size] = '\0';
   const char *ndata = convert_uri(uri, relpath);
 
   render_url_escaped(r, (MD_CHAR *)ndata, (MD_SIZE)strlen(ndata));
